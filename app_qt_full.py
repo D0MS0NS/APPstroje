@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QFormLayout, QFrame, QGraphicsOpacityEffect, QGridLayout,
     QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMainWindow, QMessageBox, QPushButton, QPlainTextEdit, QScroller,
-    QScrollArea, QSizePolicy, QSplitter, QStackedWidget, QTableWidget,
+    QProgressDialog, QScrollArea, QSizePolicy, QSplitter, QStackedWidget, QTableWidget,
     QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget, QCalendarWidget
 )
 
@@ -123,8 +123,23 @@ def build_stylesheet(theme: str) -> str:
 QWidget {{ background: {p['BG']}; color: {p['TEXT']}; font-family: "Segoe UI Variable Display", "Segoe UI", Arial; font-size: 14px; }}
 QLabel {{ background: transparent; }}
 #Rail {{ background: {p['RAIL']}; border-right: 1px solid {p['BORDER']}; }}
-#Brand, #QuickPanel, #Panel, #StatCard, #ToolbarPanel, #Toast, #DialogHeader, #ActionItem, #SettingsHero, #DetailHero, #DetailMiniCard, #SelectionPanel, #StepChip, #KpiTile {{ background: {p['PANEL']}; border: 1px solid {p['BORDER_STRONG']}; border-radius: 14px; }}
+#Brand, #QuickPanel, #Panel, #StatCard, #ToolbarPanel, #Toast, #DialogHeader, #ActionItem, #SettingsHero, #DetailHero, #DetailMiniCard, #SelectionPanel, #StepChip, #KpiTile, #DashboardHero, #DetailSectionCard, #PhotoPreviewCard, #HeroChip {{ background: {p['PANEL']}; border: 1px solid {p['BORDER_STRONG']}; border-radius: 14px; }}
 #Topbar {{ background: {p['TOPBAR']}; border-bottom: 1px solid {p['BORDER']}; }}
+#DashboardHero {{ border-radius: 22px; }}
+#DashboardHeroAccent {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 {p['ACCENT']}, stop:1 {p['ACCENT_2']}); border-radius: 18px; }}
+#DashboardHeroTitle {{ font-size: 28px; font-weight: 700; }}
+#DashboardHeroSub {{ color: {p['MUTED']}; font-size: 13px; }}
+#HeroChip {{ padding: 10px 12px; border-radius: 14px; }}
+#HeroChipLabel {{ color: {p['MUTED']}; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; }}
+#HeroChipValue {{ color: {p['TEXT']}; font-size: 18px; font-weight: 700; }}
+#PhotoPreviewCard:hover {{ border-color: {p['ACCENT_2']}; }}
+#PhotoCaption {{ color: {p['MUTED']}; font-size: 12px; }}
+#LightboxSurface {{ background: {p['PANEL']}; border: 1px solid {p['BORDER_STRONG']}; border-radius: 18px; }}
+#LightboxTitle {{ font-size: 18px; font-weight: 700; }}
+#LightboxHint {{ color: {p['MUTED']}; font-size: 12px; }}
+#DetailSectionCard {{ border-radius: 18px; }}
+#DetailSectionTitle {{ font-size: 15px; font-weight: 700; }}
+#DetailSectionSub {{ color: {p['MUTED']}; font-size: 12px; }}
 #CalendarBtn {{ min-width: 38px; max-width: 38px; min-height: 38px; max-height: 38px; padding: 0; border-radius: 12px; font-size: 16px; font-weight: 700; }}
 #RailBadge {{ background: {p['PANEL_2']}; border: 1px solid {p['BORDER_STRONG']}; border-radius: 10px; padding: 4px 8px; color: {p['ACCENT_2']}; font-size: 11px; font-weight: 700; }}
 #RailSection {{ color: {p['MUTED']}; font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 6px 2px 0 2px; }}
@@ -315,7 +330,7 @@ def load_preview_pixmap(path: str | Path, width: int = 148, height: int = 104) -
 
 def build_photo_preview(path: str | Path, caption: str = '', width: int = 148, height: int = 104) -> QWidget:
     wrap = QFrame()
-    wrap.setObjectName('DetailMiniCard')
+    wrap.setObjectName('PhotoPreviewCard')
     lay = QVBoxLayout(wrap)
     lay.setContentsMargins(10, 10, 10, 10)
     lay.setSpacing(8)
@@ -332,9 +347,168 @@ def build_photo_preview(path: str | Path, caption: str = '', width: int = 148, h
     lay.addWidget(img)
     text = QLabel(caption or Path(str(path or '')).name)
     text.setWordWrap(True)
-    text.setObjectName('PanelSubtle')
+    text.setObjectName('PhotoCaption')
     lay.addWidget(text)
     return wrap
+
+
+def set_click_handler(widget: QWidget, callback):
+    widget.setCursor(Qt.PointingHandCursor)
+
+    def _mouse_release(event):
+        if getattr(event, 'button', lambda: None)() == Qt.LeftButton:
+            callback()
+        QWidget.mouseReleaseEvent(widget, event)
+
+    widget.mouseReleaseEvent = _mouse_release
+
+
+class PhotoLightboxDialog(QDialog):
+    def __init__(self, parent: QWidget, photos: list[dict[str, Any]], start_index: int = 0, title: str = 'Fotogalerie'):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.resize(1120, 860)
+        self.setMinimumSize(920, 720)
+        self.setObjectName('Dialog')
+        self.root = QVBoxLayout(self)
+        self.root.setContentsMargins(18, 18, 18, 18)
+        self.root.setSpacing(12)
+        self.photos = photos or []
+        self.index = max(0, min(start_index, max(0, len(self.photos) - 1)))
+        center_dialog(parent, self)
+        self.cancel_btn.setText('Zavřít')
+
+        shell = QFrame()
+        shell.setObjectName('LightboxSurface')
+        outer = QVBoxLayout(shell)
+        outer.setContentsMargins(18, 18, 18, 18)
+        outer.setSpacing(12)
+
+        header = QHBoxLayout()
+        header.setSpacing(10)
+        titles = QVBoxLayout()
+        titles.setSpacing(2)
+        self.photo_title = QLabel('')
+        self.photo_title.setObjectName('LightboxTitle')
+        self.photo_hint = QLabel('Klikni na šipky pro přechod mezi fotkami.')
+        self.photo_hint.setObjectName('LightboxHint')
+        titles.addWidget(self.photo_title)
+        titles.addWidget(self.photo_hint)
+        header.addLayout(titles, 1)
+        self.open_external_btn = QPushButton('Otevřít originál')
+        self.open_external_btn.setObjectName('GhostBtn')
+        self.open_external_btn.clicked.connect(self.open_current_external)
+        header.addWidget(self.open_external_btn)
+        outer.addLayout(header)
+
+        image_row = QHBoxLayout()
+        image_row.setSpacing(12)
+        self.prev_btn = QPushButton('←')
+        self.prev_btn.setObjectName('GhostBtn')
+        self.prev_btn.setFixedWidth(52)
+        self.prev_btn.clicked.connect(lambda: self.step_photo(-1))
+        image_row.addWidget(self.prev_btn, 0, Qt.AlignVCenter)
+
+        self.image = QLabel()
+        self.image.setMinimumSize(860, 560)
+        self.image.setAlignment(Qt.AlignCenter)
+        self.image.setStyleSheet(f'background:{PANEL_3}; border:1px solid {GRID}; border-radius:16px;')
+        image_row.addWidget(self.image, 1)
+
+        self.next_btn = QPushButton('→')
+        self.next_btn.setObjectName('GhostBtn')
+        self.next_btn.setFixedWidth(52)
+        self.next_btn.clicked.connect(lambda: self.step_photo(1))
+        image_row.addWidget(self.next_btn, 0, Qt.AlignVCenter)
+        outer.addLayout(image_row, 1)
+
+        self.caption = QLabel('')
+        self.caption.setObjectName('PanelSubtle')
+        self.caption.setWordWrap(True)
+        outer.addWidget(self.caption)
+
+        self.thumb_row = QHBoxLayout()
+        self.thumb_row.setSpacing(8)
+        outer.addLayout(self.thumb_row)
+        self.root.addWidget(shell)
+
+        actions = QHBoxLayout()
+        actions.addStretch(1)
+        self.close_btn = QPushButton('Zav??t')
+        self.close_btn.setObjectName('GhostBtn')
+        self.close_btn.clicked.connect(self.accept)
+        actions.addWidget(self.close_btn)
+        self.root.addLayout(actions)
+
+        self._render_thumb_strip()
+        self.refresh_view()
+
+    def _render_thumb_strip(self):
+        while self.thumb_row.count():
+            item = self.thumb_row.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        for idx, photo in enumerate(self.photos[:6]):
+            thumb = QPushButton()
+            thumb.setObjectName('GhostBtn')
+            thumb.setFixedSize(96, 72)
+            pixmap = load_preview_pixmap(row_get(photo, 'path', ''), 84, 58)
+            if not pixmap.isNull():
+                thumb.setIcon(QIcon(pixmap))
+                thumb.setIconSize(QSize(84, 58))
+            thumb.clicked.connect(lambda _=False, value=idx: self.set_index(value))
+            self.thumb_row.addWidget(thumb)
+        self.thumb_row.addStretch(1)
+
+    def set_index(self, index: int):
+        if not self.photos:
+            return
+        self.index = max(0, min(index, len(self.photos) - 1))
+        self.refresh_view()
+
+    def step_photo(self, delta: int):
+        if not self.photos:
+            return
+        self.index = (self.index + delta) % len(self.photos)
+        self.refresh_view()
+
+    def refresh_view(self):
+        if not self.photos:
+            self.photo_title.setText('Bez fotek')
+            self.caption.setText('K tomuto záznamu zatím nejsou přidané žádné fotografie.')
+            self.image.clear()
+            self.prev_btn.setEnabled(False)
+            self.next_btn.setEnabled(False)
+            self.open_external_btn.setEnabled(False)
+            return
+        photo = self.photos[self.index]
+        path = str(row_get(photo, 'path', ''))
+        caption = str(row_get(photo, 'caption') or Path(path).name)
+        self.photo_title.setText(f'{caption} ({self.index + 1}/{len(self.photos)})')
+        self.caption.setText(path)
+        pixmap = QPixmap(path)
+        if pixmap.isNull():
+            self.image.setText('Náhled není k dispozici.')
+        else:
+            scaled = pixmap.scaled(self.image.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.image.setPixmap(scaled)
+        enabled = len(self.photos) > 1
+        self.prev_btn.setEnabled(enabled)
+        self.next_btn.setEnabled(enabled)
+        self.open_external_btn.setEnabled(Path(path).exists())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.refresh_view()
+
+    def open_current_external(self):
+        if not self.photos:
+            return
+        path = str(row_get(self.photos[self.index], 'path', ''))
+        if path and Path(path).exists():
+            os.startfile(path)
 
 
 def dashboard_tooltip_html(title: str, lines: list[str], empty_text: str = 'Bez položek.') -> str:
@@ -1498,9 +1672,15 @@ class MachineDialog(AnimatedDialog):
         item = item or self.photo_list.currentItem()
         if not item:
             return
+        photos = [as_dict(r) for r in self.shell.db.get_machine_photos(self.machine_id)] if self.machine_id else []
         path = str(item.data(Qt.UserRole + 1) or '')
-        if path and Path(path).exists():
-            os.startfile(path)
+        current_index = 0
+        for idx, photo in enumerate(photos):
+            if str(row_get(photo, 'path', '')) == path:
+                current_index = idx
+                break
+        dlg = PhotoLightboxDialog(self, photos, current_index, 'Fotky stroje')
+        dlg.exec()
     def refresh_accessories(self):
         self.acc_table.setColumnCount(2); self.acc_table.setHorizontalHeaderLabels(['Název','Cena'])
         if not self.machine_id:
@@ -2017,7 +2197,6 @@ class DashboardPage(BasePage):
     def __init__(self, shell: 'MainWindow'):
         super().__init__(shell)
         root = QVBoxLayout(self); root.setContentsMargins(24,24,24,24); root.setSpacing(18)
-
         cards = QGridLayout(); cards.setSpacing(10)
         self.c_active=StatCard('Aktivní smlouvy', ACCENT); cards.addWidget(self.c_active,0,0)
         self.c_returns=StatCard('Dnes vratky', WARN); cards.addWidget(self.c_returns,0,1)
@@ -2076,6 +2255,14 @@ class DashboardPage(BasePage):
         self.today.list.itemDoubleClicked.connect(self._open_action_item)
         self.calendar_panel.list.itemDoubleClicked.connect(self._open_action_item)
         self.calendar_panel.calendar.selectionChanged.connect(self.refresh_calendar_items)
+
+    def _make_hero_chip(self, label: str, value: str):
+        chip = QFrame(); chip.setObjectName('HeroChip')
+        lay = QVBoxLayout(chip); lay.setContentsMargins(14,12,14,12); lay.setSpacing(2)
+        lbl = QLabel(label); lbl.setObjectName('HeroChipLabel')
+        val = QLabel(value); val.setObjectName('HeroChipValue'); val.setWordWrap(True)
+        lay.addWidget(lbl); lay.addWidget(val)
+        return chip, val
 
     def _open_action_item(self, item):
         data=item.data(Qt.UserRole) or {}
@@ -2735,15 +2922,39 @@ class DetailDialog(AnimatedDialog):
             grid.addWidget(card, idx // 3, idx % 3)
         self.body_l.addWidget(wrap)
 
+    def add_section_card(self, title: str, subtitle: str = '') -> QVBoxLayout:
+        card = QFrame()
+        card.setObjectName('DetailSectionCard')
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(12)
+        header = QVBoxLayout()
+        header.setSpacing(2)
+        ttl = QLabel(title)
+        ttl.setObjectName('DetailSectionTitle')
+        header.addWidget(ttl)
+        if subtitle:
+            sub = QLabel(subtitle)
+            sub.setObjectName('DetailSectionSub')
+            sub.setWordWrap(True)
+            header.addWidget(sub)
+        lay.addLayout(header)
+        self.body_l.addWidget(card)
+        return lay
+
     def add_kv_panel(self, title: str, mapping: list[tuple[str, Any]]):
+        wrap = self.add_section_card(title)
         g=FormGroup(title)
+        g.setTitle('')
+        g.form.setContentsMargins(0, 0, 0, 0)
+        g.setStyleSheet(f'QGroupBox#FormGroup {{ border: 0; margin-top: 0px; padding-top: 0px; background: transparent; }}')
         for label, value in mapping:
             val=QLabel(format_display_value(label, value)); val.setWordWrap(True); val.setObjectName('DetailValueLabel')
             lab=QLabel(label); lab.setObjectName('DetailKeyLabel')
             normalize_widget_font(val)
             normalize_widget_font(lab)
             g.form.addRow(lab, val)
-        self.body_l.addWidget(g)
+        wrap.addWidget(g)
 
 
 class ReturnDialog(AnimatedDialog):
@@ -3049,6 +3260,44 @@ class MainWindow(QMainWindow):
         script_path.write_text(script, encoding='utf-8')
         return script_path
 
+    def _download_update_with_progress(self, download_url: str, target_path: Path) -> None:
+        req = urllib.request.Request(download_url, headers={'User-Agent': f'{APP_NAME}/{APP_VERSION}'})
+        progress = QProgressDialog('Stahuji aktualizaci...', None, 0, 100, self)
+        progress.setWindowTitle('Aktualizace')
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+        progress.setAutoReset(False)
+        progress.setCancelButton(None)
+        progress.setValue(0)
+        progress.show()
+        QApplication.processEvents()
+
+        try:
+            with urllib.request.urlopen(req, timeout=60) as response, target_path.open('wb') as fh:
+                total_bytes = int(response.headers.get('Content-Length') or 0)
+                downloaded = 0
+                chunk_size = 1024 * 256
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+                    downloaded += len(chunk)
+                    if total_bytes > 0:
+                        percent = min(100, int(downloaded * 100 / total_bytes))
+                        progress.setLabelText(f'Stahuji aktualizaci... {percent} %')
+                        progress.setValue(percent)
+                    else:
+                        spinner = 5 + (downloaded // chunk_size) % 90
+                        progress.setLabelText('Stahuji aktualizaci...')
+                        progress.setValue(int(spinner))
+                    QApplication.processEvents()
+            progress.setLabelText('Dokončuji instalaci...')
+            progress.setValue(100)
+            QApplication.processEvents()
+        finally:
+            progress.close()
+
     def check_for_updates(self):
         repo = self._update_repo()
         if not repo:
@@ -3094,9 +3343,7 @@ class MainWindow(QMainWindow):
         try:
             tmp_dir = Path(tempfile.mkdtemp(prefix='pujcovna_update_', dir=str(UPDATES_DIR)))
             downloaded_exe = tmp_dir / asset_name
-            req = urllib.request.Request(download_url, headers={'User-Agent': f'{APP_NAME}/{APP_VERSION}'})
-            with urllib.request.urlopen(req, timeout=60) as response, downloaded_exe.open('wb') as fh:
-                shutil.copyfileobj(response, fh)
+            self._download_update_with_progress(download_url, downloaded_exe)
             script_path = self._write_update_script(current_exe, downloaded_exe)
             subprocess.Popen(['cmd', '/c', str(script_path)], close_fds=True)
             QMessageBox.information(self, 'Aktualizace', 'Aktualizace je stažená. Aplikace se teď zavře a spustí novou verzi.')
@@ -3340,7 +3587,7 @@ def _open_machine_detail_with_history(self: MainWindow, machine_id: int):
             self.open_service_detail(item_id)
 
     timeline_table.itemDoubleClicked.connect(lambda *_: _open_timeline_row())
-    timeline_panel = Panel('Historie stroje')
+    timeline_panel = Panel('Historie stroje', 'Kompletní časová osa půjčení, rezervací a servisních zásahů.')
     timeline_panel.content.addWidget(timeline_table)
     dlg.body_l.addWidget(timeline_panel)
 
@@ -3539,6 +3786,19 @@ def _dashboard_refresh_clean(self: DashboardPage):
     self.kpi_service.set_data(int(stats.get('service_due', 0)), 'Term\u00edn nebo motohodiny')
     self.kpi_res.set_data(int(stats.get('reservations_active', 0)), '\u010cekaj\u00ed v kalend\u00e1\u0159i')
     self.kpi_unpaid.set_data(int(stats.get('unpaid', 0)), 'K doplacen\u00ed')
+    if hasattr(self, 'hero_chip_tasks'):
+        self.hero_chip_tasks[1].setText(f"{int(stats.get('contracts_overdue', 0)) + int(stats.get('service_due', 0))} polo\u017eek")
+        self.hero_chip_money[1].setText(fmt_money(stats.get('unpaid_amount', 0) or 0))
+        self.hero_chip_week[1].setText(f"{int(stats.get('returns_today', 0))} dne\u0161ek / {int(stats.get('reservations_active', 0))} rezervace")
+    if hasattr(self, 'hero_focus'):
+        if int(stats.get('contracts_overdue', 0)) > 0:
+            self.hero_focus.setText('Pot\u0159eba dot\u00e1hnout opo\u017ed\u011bn\u00e9 vratky.')
+        elif int(stats.get('unpaid', 0)) > 0:
+            self.hero_focus.setText('Pohl\u00eddej otev\u0159en\u00e9 finance.')
+        elif int(stats.get('service_due', 0)) > 0:
+            self.hero_focus.setText('Servis chce dne\u0161n\u00ed pozornost.')
+        else:
+            self.hero_focus.setText('Provoz je dnes v klidn\u00e9m rytmu.')
 
     active_contract_rows = [as_dict(r) for r in self.shell.db.fetchall(
         """
@@ -3841,13 +4101,13 @@ def _open_machine_detail_clean(self: MainWindow, machine_id: int):
         reservation_ids.append(int(row_get(r, 'id', 0) or 0))
     self.fill_table(reservations_table, reservation_rows, reservation_ids)
     reservations_table.itemDoubleClicked.connect(lambda *_: self.open_reservation_detail(self.current_table_id(reservations_table)))
-    reservations_panel = Panel('Rezervace stroje')
+    reservations_panel = Panel('Rezervace stroje', 'Plánované blokace a potvrzené termíny pro tento stroj.')
     reservations_panel.content.addWidget(reservations_table)
     dlg.body_l.addWidget(reservations_panel)
 
     photos = [as_dict(r) for r in self.db.get_machine_photos(machine_id)]
     if photos:
-        p3 = Panel('Fotky')
+        p3 = Panel('Fotky', 'Klikni na náhled pro větší zobrazení nebo otevření originálu.')
         grid_wrap = QWidget()
         grid = QGridLayout(grid_wrap)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -3856,7 +4116,9 @@ def _open_machine_detail_clean(self: MainWindow, machine_id: int):
         for idx, ph in enumerate(photos[:8]):
             path = str(row_get(ph, 'path', ''))
             caption = str(row_get(ph, 'caption') or Path(path).name)
-            grid.addWidget(build_photo_preview(path, caption, 180, 120), idx // 2, idx % 2)
+            preview = build_photo_preview(path, caption, 180, 120)
+            set_click_handler(preview, lambda value=idx: PhotoLightboxDialog(dlg, photos, value, 'Fotky stroje').exec())
+            grid.addWidget(preview, idx // 2, idx % 2)
         p3.content.addWidget(grid_wrap)
         dlg.body_l.addWidget(p3)
     dlg.exec()
