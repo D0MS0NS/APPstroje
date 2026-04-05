@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build outputs
+build/
+dist/
+*.spec.bak
+
+# Test / tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local app data
+data/
+*.db
+*.sqlite
+*.sqlite3
+app.lock.json
+theme.txt
+
+# Generated exports / backups / runtime files
+exports/
+backups/
+labels/
+protocols/
+photos/
+updates/
+*.log
+
+# PyInstaller / packaging leftovers
+*.manifest
+*.pkg
