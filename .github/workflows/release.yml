@@ -1,21 +1,13 @@
-name: Create Release
+name: Release Helper
 
 on:
-  push:
-    tags:
-      - "v*"
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
-  create-release:
+  info:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+      - name: Explain local release flow
+        run: |
+          echo "Releasy se vytvareji lokalne pres release.bat / scripts/release_build.py."
+          echo "Workflow zustava jen jako pomocna dokumentacni stopa v repozitari."

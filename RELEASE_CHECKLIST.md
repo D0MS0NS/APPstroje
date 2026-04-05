@@ -6,7 +6,8 @@
 - Spustit `python -m py_compile app_qt_full.py database.py tests\test_database.py`
 - Overit build prikazem `python -m PyInstaller --noconfirm PujcovnaStroju.spec`
 - Zkontrolovat, ze vznikl `dist\PujcovnaStroju.exe`
-- Pri GitHub releasu nahrat prave lokalni `dist\PujcovnaStroju.exe` do release assetu
+- Pro plne automaticky release pouzit `release.bat 1.0.5`
+- Pokud release delas rucne, nahrat prave lokalni `dist\PujcovnaStroju.exe` do release assetu
 
 ## Rucni smoke test
 
