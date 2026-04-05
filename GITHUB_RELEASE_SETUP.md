@@ -4,10 +4,9 @@
 - verze aplikace se bere ze souboru `VERSION`
 - lokalne ji zmenis prikazem `python scripts/set_version.py 1.0.1`
 - GitHub Actions workflow `.github/workflows/release.yml` po tagu `v*`:
-  - prepise `VERSION` podle tagu
-  - nainstaluje zavislosti
-  - postavi `dist/PujcovnaStroju.exe`
-  - vytvori GitHub Release a nahraje `.exe`
+  - vytvori GitHub Release
+  - vygeneruje release notes
+  - ceka na nahrani tveho lokalne postaveneho `.exe`
 
 ## Prvni nastaveni repozitare
 1. Nahraj projekt do GitHub repozitare.
@@ -25,8 +24,12 @@
 4. Posli commit i tag na GitHub:
    `git push`
    `git push origin v1.0.1`
-5. Pockej, az workflow dokonci build.
-6. Na GitHubu v sekci `Releases` zkontroluj, ze vznikl release `v1.0.1` a obsahuje `PujcovnaStroju.exe`.
+5. Lokalně postav novy build:
+   `python -m PyInstaller --noconfirm PujcovnaStroju.spec`
+6. Pockej, az workflow vytvori release `v1.0.1`.
+7. Na GitHubu otevri `Releases > v1.0.1 > Edit`.
+8. Nahraj lokalni soubor `dist/PujcovnaStroju.exe`.
+9. Uloz release a zkontroluj, ze obsahuje `PujcovnaStroju.exe`.
 
 ## Nastaveni v aplikaci
 V `Nastaveni > Data a zalohy` vypln:
@@ -39,3 +42,4 @@ Pak na druhem PC staci kliknout na `Zkontrolovat aktualizaci`.
 - auto-update funguje z finalniho `.exe`, ne pri spousteni ze zdrojaku
 - aktualizace porovnava verzi z `VERSION` s poslednim GitHub releasem
 - release tag musi byt ve tvaru `v1.0.1`
+- do releasu nahravej lokalne postaveny `dist/PujcovnaStroju.exe`, ne build z CI
